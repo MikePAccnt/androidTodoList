@@ -3,6 +3,8 @@ package com.example.michael.todolist;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.os.Bundle;
 import android.os.Handler;
@@ -253,6 +255,29 @@ public class MainActivity extends AppCompatActivity{
         if(modifyItemView == null){
             LayoutInflater layoutInflater = getLayoutInflater();
             modifyItemView = layoutInflater.inflate(R.layout.modify_item,null);
+            TextView description = modifyItemView.findViewById(R.id.modDesc);
+            TextView shortDescription = modifyItemView.findViewById(R.id.modShortDesc);
+            Spinner priority = modifyItemView.findViewById(R.id.modPriority);
+
+            //If I don't store these as string and access the viewItemAdapter to get the item within
+            //the setText() the string will be blank and the text filed will get it's suggestion text.
+            //*** Don't know why this happens *** //
+            String desc = viewItemAdapter.getItem(holder.getAdapterPosition()).getDescription();
+            String sDesc = viewItemAdapter.getItem(holder.getAdapterPosition()).getShortDescription();
+            description.setText(desc);
+            shortDescription.setText(sDesc);
+
+            switch (viewItemAdapter.getItem(holder.getAdapterPosition()).getStringPriority()){
+                case "Low":
+                    priority.setSelection(0);
+                    break;
+                case "Medium":
+                    priority.setSelection(1);
+                    break;
+                case "High":
+                    priority.setSelection(2);
+                    break;
+            }
         }
         deleteDialog.setView(modifyItemView);
         deleteDialog.setOnKeyListener(new DialogInterface.OnKeyListener() {
@@ -325,8 +350,22 @@ public class MainActivity extends AppCompatActivity{
             return title;
         }
 
-        public String getPriority() {
-            return priority;
+        public Bitmap getBitmapPriority() {
+
+            switch (priority){
+                case "Low":
+                    return Bitmap.createBitmap(BitmapFactory.decodeResource(getResources(),R.drawable.low_priority));
+                case "Medium":
+                    return Bitmap.createBitmap(BitmapFactory.decodeResource(getResources(),R.drawable.medium_priority));
+                case "High":
+                    return Bitmap.createBitmap(BitmapFactory.decodeResource(getResources(),R.drawable.high_priority));
+                default:
+                    return Bitmap.createBitmap(BitmapFactory.decodeResource(getResources(),R.drawable.low_priority));
+            }
+
+        }
+        public String getStringPriority(){
+            return this.priority;
         }
 
         public String getDescription() {
@@ -428,7 +467,7 @@ public class MainActivity extends AppCompatActivity{
                     Log.d(TAG, "Modified: "+ title);
                     int position = items.indexOf(t);
                     t.setDescription(description);
-                    //t.setPriority(priority);
+                    t.setPriority(priority);
                     t.setShortDescription(shortDescription);
                     notifyItemChanged(position);
                 }
@@ -454,6 +493,7 @@ public class MainActivity extends AppCompatActivity{
             holder.title.setText(temp.getTitle());
             holder.short_description.setText(temp.getShortDescription());
             holder.description.setText(temp.getDescription());
+            holder.priority.setImageBitmap(temp.getBitmapPriority());
 
             if(show) {
                 holder.description.setVisibility(View.VISIBLE);
@@ -500,7 +540,7 @@ public class MainActivity extends AppCompatActivity{
             String desc = intent.getStringExtra(ControllerService.EXTRA_DESCRIPTION);
             String short_desc = intent.getStringExtra(ControllerService.EXTRA_SHORT_DESCRIPTION);
 
-            ViewItem viewItem = new ViewItem(title,null,desc,short_desc);
+            ViewItem viewItem = new ViewItem(title,priority,desc,short_desc);
 
             viewItemAdapter.addItem(viewItem);
         }
