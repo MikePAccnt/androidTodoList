@@ -252,9 +252,10 @@ public class MainActivity extends AppCompatActivity{
 
     private void modifyDialog(final ViewItemHolder holder){
         final AlertDialog.Builder deleteDialog = new AlertDialog.Builder(MainActivity.this);
-        if(modifyItemView == null){
+        if(modifyItemView == null) {
             LayoutInflater layoutInflater = getLayoutInflater();
-            modifyItemView = layoutInflater.inflate(R.layout.modify_item,null);
+            modifyItemView = layoutInflater.inflate(R.layout.modify_item, null);
+        }
             TextView description = modifyItemView.findViewById(R.id.modDesc);
             TextView shortDescription = modifyItemView.findViewById(R.id.modShortDesc);
             Spinner priority = modifyItemView.findViewById(R.id.modPriority);
@@ -278,7 +279,6 @@ public class MainActivity extends AppCompatActivity{
                     priority.setSelection(2);
                     break;
             }
-        }
         deleteDialog.setView(modifyItemView);
         deleteDialog.setOnKeyListener(new DialogInterface.OnKeyListener() {
             @Override
