@@ -33,7 +33,6 @@ import android.widget.Spinner;
 import android.widget.TextView;
 
 import java.util.ArrayList;
-import java.util.Scanner;
 
 public class MainActivity extends AppCompatActivity{
 
@@ -95,7 +94,7 @@ public class MainActivity extends AppCompatActivity{
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.toolbar_menu,menu);
+        getMenuInflater().inflate(R.menu.toolbar_main_menu,menu);
         return true;
     }
 
@@ -108,6 +107,8 @@ public class MainActivity extends AppCompatActivity{
                 builder.show();
                 return true;
             case R.id.changeView:
+
+                startActivity(new Intent(this,SecondActivity.class));
                 return true;
         }
         return super.onOptionsItemSelected(item);
@@ -251,7 +252,7 @@ public class MainActivity extends AppCompatActivity{
     }
 
     private void modifyDialog(final ViewItemHolder holder){
-        final AlertDialog.Builder deleteDialog = new AlertDialog.Builder(MainActivity.this);
+        final AlertDialog.Builder modifyDialog = new AlertDialog.Builder(MainActivity.this);
         if(modifyItemView == null) {
             LayoutInflater layoutInflater = getLayoutInflater();
             modifyItemView = layoutInflater.inflate(R.layout.modify_item, null);
@@ -260,13 +261,8 @@ public class MainActivity extends AppCompatActivity{
             TextView shortDescription = modifyItemView.findViewById(R.id.modShortDesc);
             Spinner priority = modifyItemView.findViewById(R.id.modPriority);
 
-            //If I don't store these as string and access the viewItemAdapter to get the item within
-            //the setText() the string will be blank and the text filed will get it's suggestion text.
-            //*** Don't know why this happens *** //
-            String desc = viewItemAdapter.getItem(holder.getAdapterPosition()).getDescription();
-            String sDesc = viewItemAdapter.getItem(holder.getAdapterPosition()).getShortDescription();
-            description.setText(desc);
-            shortDescription.setText(sDesc);
+            description.setText(viewItemAdapter.getItem(holder.getAdapterPosition()).getDescription());
+            shortDescription.setText(viewItemAdapter.getItem(holder.getAdapterPosition()).getShortDescription());
 
             switch (viewItemAdapter.getItem(holder.getAdapterPosition()).getStringPriority()){
                 case "Low":
@@ -279,8 +275,8 @@ public class MainActivity extends AppCompatActivity{
                     priority.setSelection(2);
                     break;
             }
-        deleteDialog.setView(modifyItemView);
-        deleteDialog.setOnKeyListener(new DialogInterface.OnKeyListener() {
+        modifyDialog.setView(modifyItemView);
+        modifyDialog.setOnKeyListener(new DialogInterface.OnKeyListener() {
             @Override
             public boolean onKey(DialogInterface dialog, int keyCode, KeyEvent event) {
                 if(keyCode == KeyEvent.KEYCODE_BACK){
@@ -291,7 +287,7 @@ public class MainActivity extends AppCompatActivity{
                 return false;
             }
         });
-        deleteDialog.setPositiveButton("Change", new DialogInterface.OnClickListener() {
+        modifyDialog.setPositiveButton("Change", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 String title = viewItemAdapter.getItem(holder.getAdapterPosition()).getTitle();
@@ -303,33 +299,33 @@ public class MainActivity extends AppCompatActivity{
                 ((ViewGroup) modifyItemView.getParent()).removeView(modifyItemView);
             }
         });
-        deleteDialog.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+        modifyDialog.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 viewItemAdapter.notifyDataSetChanged();
                 ((ViewGroup) modifyItemView.getParent()).removeView(modifyItemView);
             }
         });
-        deleteDialog.show();
+        modifyDialog.show();
     }
 
     private void broadcastRemoveItem(ViewItemHolder holder){
-        MainActivity.this.sendBroadcast(new Intent(ControllerService.ACTION_REMOVE_ITEM).putExtra(ControllerService.EXTRA_TITLE,viewItemAdapter.getItem(holder.getAdapterPosition()).getTitle()));
+        MainActivity.this.sendBroadcast(new Intent(ControllerService.ACTION_REMOVE_ITEM).putExtra(ControllerService.EXTRA_TITLE,viewItemAdapter.getItem(holder.getAdapterPosition()).getTitle().trim()));
     }
     private void broadcastModifyItem(String title, String priority,String description, String shortDescription){
 
         MainActivity.this.sendBroadcast(new Intent(ControllerService.ACTION_MODIFY_ITEM)
-                .putExtra(ControllerService.EXTRA_TITLE,title)
-                .putExtra(ControllerService.EXTRA_PRIORITY,priority)
-                .putExtra(ControllerService.EXTRA_DESCRIPTION,description)
-                .putExtra(ControllerService.EXTRA_SHORT_DESCRIPTION,shortDescription));
+                .putExtra(ControllerService.EXTRA_TITLE,title.trim())
+                .putExtra(ControllerService.EXTRA_PRIORITY,priority.trim())
+                .putExtra(ControllerService.EXTRA_DESCRIPTION,description.trim())
+                .putExtra(ControllerService.EXTRA_SHORT_DESCRIPTION,shortDescription.trim()));
     }
     private void broadcastAddItem(EditText editTitle,Spinner editPriority, EditText editDesc, EditText editShortDesc){
         getApplicationContext().sendBroadcast(new Intent(ControllerService.ACTION_ADD_ITEM)
-                .putExtra(ControllerService.EXTRA_TITLE,editTitle.getText().toString())
-                .putExtra(ControllerService.EXTRA_PRIORITY,editPriority.getSelectedItem().toString())
-                .putExtra(ControllerService.EXTRA_DESCRIPTION,editDesc.getText().toString())
-                .putExtra(ControllerService.EXTRA_SHORT_DESCRIPTION,editShortDesc.getText().toString()));
+                .putExtra(ControllerService.EXTRA_TITLE,editTitle.getText().toString().trim())
+                .putExtra(ControllerService.EXTRA_PRIORITY,editPriority.getSelectedItem().toString().trim())
+                .putExtra(ControllerService.EXTRA_DESCRIPTION,editDesc.getText().toString().trim())
+                .putExtra(ControllerService.EXTRA_SHORT_DESCRIPTION,editShortDesc.getText().toString().trim()));
     }
 
     private class ViewItem{
