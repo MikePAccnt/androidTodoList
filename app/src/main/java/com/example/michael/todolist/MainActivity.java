@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.support.constraint.ConstraintLayout;
 import android.support.constraint.ConstraintSet;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.DefaultItemAnimator;
@@ -17,6 +18,7 @@ import android.support.v7.widget.DividerItemDecoration;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.helper.ItemTouchHelper;
+import android.text.Layout;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -32,7 +34,18 @@ import android.widget.RadioButton;
 import android.widget.Spinner;
 import android.widget.TextView;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
+import java.util.Comparator;
+
+/**
+ * Created by Michael Purcell on 12/9/2017.
+ *
+ * All resources used for project:
+ * https://stackoverflow.com/questions/27293960/swipe-to-dismiss-for-recyclerview
+ * https://www.androidhive.info/2016/01/android-working-with-recycler-view/
+ * https://developer.android.com/reference/android/support/v4/widget/SwipeRefreshLayout.html
+ */
 
 public class MainActivity extends AppCompatActivity{
 
@@ -50,15 +63,18 @@ public class MainActivity extends AppCompatActivity{
     private View deleteItemView;
     private boolean askLater = true;
     private View modifyItemView;
+    private SwipeRefreshLayout refreshLayout;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        refreshLayout = findViewById(R.id.refreshLayout);
         recyclerView = findViewById(R.id.recyclerView);
         titles = new ArrayList<>();
         items = new ArrayList<>();
         viewItemAdapter = new ViewItemAdapter(this,items,R.layout.row_items);
+
         recyclerView.setAdapter(viewItemAdapter);
         RecyclerView.LayoutManager manager = new LinearLayoutManager(getApplicationContext());
         recyclerView.setLayoutManager(manager);
@@ -68,8 +84,15 @@ public class MainActivity extends AppCompatActivity{
         ItemTouchHelper helper = new ItemTouchHelper(itemSwipe);
         helper.attachToRecyclerView(recyclerView);
 
-        initNewItemDialog();
+        refreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+            @Override
+            public void onRefresh() {
+                sortItems();
+                refreshLayout.setRefreshing(false);
+            }
+        });
 
+        initNewItemDialog();
         toDoBroadcastReceiver = new ToDoBroadcastReceiver();
         registerReceiver(toDoBroadcastReceiver,toDoBroadcastReceiver.getIntentFilter());
 
@@ -83,6 +106,7 @@ public class MainActivity extends AppCompatActivity{
         items.clear();
         viewItemAdapter.notifyDataSetChanged();
         //Hacky way to make sure the ControllerService has been started before requesting all items.
+        //Should change this later.
         new Handler().postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -107,7 +131,6 @@ public class MainActivity extends AppCompatActivity{
                 builder.show();
                 return true;
             case R.id.changeView:
-
                 startActivity(new Intent(this,SecondActivity.class));
                 return true;
         }
@@ -119,6 +142,46 @@ public class MainActivity extends AppCompatActivity{
         super.onDestroy();
 
         unregisterReceiver(toDoBroadcastReceiver);
+    }
+
+    //Sorts the items so that there are one of each priority in the top three
+    public void sortItems(){
+        ArrayList<ViewItem> temp = new ArrayList<>();
+        boolean foundLow = false;
+        boolean foundMed = false;
+        boolean foundHigh = false;
+
+        for(int i = 0; i < items.size();i++){
+
+            ViewItem item = items.get(i);
+            String priority = item.getStringPriority();
+
+            if(!foundLow && priority.equals("Low")){
+                temp.add(item);
+                items.remove(item);
+                viewItemAdapter.notifyItemRemoved(i);
+                foundLow = true;
+            }
+            else if(!foundMed && priority.equals("Medium")){
+                temp.add(item);
+                items.remove(item);
+                viewItemAdapter.notifyItemRemoved(i);
+                foundMed = true;
+            }
+            else if(!foundHigh && priority.equals("High")){
+                temp.add(item);
+                items.remove(item);
+                viewItemAdapter.notifyItemRemoved(i);
+                foundHigh = true;
+            }
+        }
+        for(ViewItem item : temp) {
+            items.add(0, item);
+            viewItemAdapter.notifyItemInserted(0);
+        }
+
+        recyclerView.setScrollY(0);
+        Log.d(TAG,"Done sorting");
     }
 
     private void initNewItemDialog(){
@@ -170,47 +233,6 @@ public class MainActivity extends AppCompatActivity{
             }
         });
     }
-    //Help from:
-    // https://stackoverflow.com/questions/44442760/dynamically-changing-the-constraint-of-a-view-in-constraintlayout
-    // https://stackoverflow.com/questions/27293960/swipe-to-dismiss-for-recyclerview
-    private void initItemTouchHelper(){
-        itemSwipe = new ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT | ItemTouchHelper.RIGHT) {
-
-            @Override
-            public boolean onMove(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder, RecyclerView.ViewHolder target) {
-                return false;
-            }
-
-            @Override
-            public void onSwiped(final RecyclerView.ViewHolder viewHolder, int direction) {
-                Log.d(TAG,"Swiped");
-
-                final ViewItemHolder holder = (ViewItemHolder) viewHolder;
-                ConstraintSet set = new ConstraintSet();
-                set.clone(holder.constraintLayout);
-                if(direction == ItemTouchHelper.LEFT){
-                    Log.d(TAG,"Swiped Left");
-                    if(askLater){
-                        askToDeleteDialog(holder);
-                    }
-                    else {
-                        broadcastRemoveItem(holder);
-                    }
-                }
-                else if(direction == ItemTouchHelper.RIGHT){
-                    Log.d(TAG,"Swiped Right");
-                    modifyDialog(holder);
-                }
-            }
-
-            @Override
-            public void onChildDrawOver(Canvas c, RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder, float dX, float dY, int actionState, boolean isCurrentlyActive) {
-
-                super.onChildDrawOver(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive);
-            }
-        };
-    }
-
     private void askToDeleteDialog(final ViewItemHolder holder){
         final AlertDialog.Builder deleteDialog = new AlertDialog.Builder(MainActivity.this);
         if(deleteItemView == null){
@@ -257,24 +279,24 @@ public class MainActivity extends AppCompatActivity{
             LayoutInflater layoutInflater = getLayoutInflater();
             modifyItemView = layoutInflater.inflate(R.layout.modify_item, null);
         }
-            TextView description = modifyItemView.findViewById(R.id.modDesc);
-            TextView shortDescription = modifyItemView.findViewById(R.id.modShortDesc);
-            Spinner priority = modifyItemView.findViewById(R.id.modPriority);
+        TextView description = modifyItemView.findViewById(R.id.modDesc);
+        TextView shortDescription = modifyItemView.findViewById(R.id.modShortDesc);
+        Spinner priority = modifyItemView.findViewById(R.id.modPriority);
 
-            description.setText(viewItemAdapter.getItem(holder.getAdapterPosition()).getDescription());
-            shortDescription.setText(viewItemAdapter.getItem(holder.getAdapterPosition()).getShortDescription());
+        description.setText(viewItemAdapter.getItem(holder.getAdapterPosition()).getDescription());
+        shortDescription.setText(viewItemAdapter.getItem(holder.getAdapterPosition()).getShortDescription());
 
-            switch (viewItemAdapter.getItem(holder.getAdapterPosition()).getStringPriority()){
-                case "Low":
-                    priority.setSelection(0);
-                    break;
-                case "Medium":
-                    priority.setSelection(1);
-                    break;
-                case "High":
-                    priority.setSelection(2);
-                    break;
-            }
+        switch (viewItemAdapter.getItem(holder.getAdapterPosition()).getStringPriority()){
+            case "Low":
+                priority.setSelection(0);
+                break;
+            case "Medium":
+                priority.setSelection(1);
+                break;
+            case "High":
+                priority.setSelection(2);
+                break;
+        }
         modifyDialog.setView(modifyItemView);
         modifyDialog.setOnKeyListener(new DialogInterface.OnKeyListener() {
             @Override
@@ -312,6 +334,7 @@ public class MainActivity extends AppCompatActivity{
     private void broadcastRemoveItem(ViewItemHolder holder){
         MainActivity.this.sendBroadcast(new Intent(ControllerService.ACTION_REMOVE_ITEM).putExtra(ControllerService.EXTRA_TITLE,viewItemAdapter.getItem(holder.getAdapterPosition()).getTitle().trim()));
     }
+
     private void broadcastModifyItem(String title, String priority,String description, String shortDescription){
 
         MainActivity.this.sendBroadcast(new Intent(ControllerService.ACTION_MODIFY_ITEM)
@@ -328,7 +351,8 @@ public class MainActivity extends AppCompatActivity{
                 .putExtra(ControllerService.EXTRA_SHORT_DESCRIPTION,editShortDesc.getText().toString().trim()));
     }
 
-    private class ViewItem{
+    //Object for RecyclerView.ViewHolder
+    private class ViewItem {
         private String title;
         private String priority;
         private String description;
@@ -405,7 +429,6 @@ public class MainActivity extends AppCompatActivity{
         TextView description;
         TextView short_description;
         ImageView priority;
-        ImageButton deleteButton;
 
         public ViewItemHolder(View itemView) {
             super(itemView);
@@ -414,7 +437,6 @@ public class MainActivity extends AppCompatActivity{
             short_description = itemView.findViewById(R.id.todoShortDesc);
             priority = itemView.findViewById(R.id.todoPriority);
             constraintLayout = itemView.findViewById(R.id.rowConstraintLayout);
-            deleteButton = itemView.findViewById(R.id.todoRemove);
         }
     }
 
@@ -429,6 +451,7 @@ public class MainActivity extends AppCompatActivity{
             this.items = items;
             this.resource = resource;
         }
+
 
         public void addItem(ViewItem item){
 
@@ -514,17 +537,46 @@ public class MainActivity extends AppCompatActivity{
                 }
             });
 
-            holder.deleteButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    String title = items.get(holder.getAdapterPosition()).getTitle();
-                    viewItemAdapter.deleteItem(holder.title.toString());
-                    context.sendBroadcast(new Intent(ControllerService.ACTION_REMOVE_ITEM).putExtra(ControllerService.EXTRA_TITLE,title));
-                }
-            });
-
         }
 
+    }
+
+    private void initItemTouchHelper(){
+        itemSwipe = new ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT | ItemTouchHelper.RIGHT) {
+
+            @Override
+            public boolean onMove(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder, RecyclerView.ViewHolder target) {
+                return false;
+            }
+
+            @Override
+            public void onSwiped(final RecyclerView.ViewHolder viewHolder, int direction) {
+                Log.d(TAG,"Swiped");
+
+                final ViewItemHolder holder = (ViewItemHolder) viewHolder;
+                ConstraintSet set = new ConstraintSet();
+                set.clone(holder.constraintLayout);
+                if(direction == ItemTouchHelper.LEFT){
+                    Log.d(TAG,"Swiped Left");
+                    if(askLater){
+                        askToDeleteDialog(holder);
+                    }
+                    else {
+                        broadcastRemoveItem(holder);
+                    }
+                }
+                else if(direction == ItemTouchHelper.RIGHT){
+                    Log.d(TAG,"Swiped Right");
+                    modifyDialog(holder);
+                }
+            }
+
+            @Override
+            public void onChildDrawOver(Canvas c, RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder, float dX, float dY, int actionState, boolean isCurrentlyActive) {
+
+                super.onChildDrawOver(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive);
+            }
+        };
     }
 
     private class ToDoBroadcastReceiver extends ViewBroadcastReceiver{

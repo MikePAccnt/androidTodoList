@@ -33,6 +33,14 @@ import java.util.regex.Pattern;
 
 /**
  * Created by Michael Purcell on 12/9/2017.
+ *
+ * Implementation of a second view to show that it is
+ * a MVC type design.
+ *
+ * Note:
+ * Modifying doesn't correctly update the second
+ * view if done inside of it. However it does correctly
+ * notify the controller to update the data.
  */
 
 public class SecondActivity extends AppCompatActivity {
@@ -41,11 +49,11 @@ public class SecondActivity extends AppCompatActivity {
 
     private ListView listView;
     private ArrayListAdapter arrayListAdapter;
-    private ArrayList<String> items;
+    private ArrayList<String> items = new ArrayList<>();
     private ToDoBroadcastReceiver toDoBroadcastReceiver;
     private AlertDialog.Builder builder;
     private View newItemView;
-    private View deleteItemView;
+    private View modifyItemView;
     private int selectedItem;
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -54,7 +62,7 @@ public class SecondActivity extends AppCompatActivity {
         setContentView(R.layout.activity_second);
         listView = findViewById(R.id.listView);
 
-        items = new ArrayList<>();
+
         arrayListAdapter = new ArrayListAdapter(this,R.layout.second_row_items,R.id.textView5,items);
 
         listView.setAdapter(arrayListAdapter);
@@ -103,7 +111,10 @@ public class SecondActivity extends AppCompatActivity {
         switch (item.getItemId()){
             case R.id.deleteItem:
                 broadcastRemoveItem();
-                break;
+                return true;
+            case R.id.modifyItem:
+                modifyDialog();
+                return true;
         }
 
         return super.onContextItemSelected(item);
@@ -179,6 +190,68 @@ public class SecondActivity extends AppCompatActivity {
         });
     }
 
+    private void modifyDialog(){
+        final AlertDialog.Builder modifyDialog = new AlertDialog.Builder(SecondActivity.this);
+        if(modifyItemView == null) {
+            LayoutInflater layoutInflater = getLayoutInflater();
+            modifyItemView = layoutInflater.inflate(R.layout.modify_item, null);
+        }
+//        TextView description = modifyItemView.findViewById(R.id.modDesc);
+//        TextView shortDescription = modifyItemView.findViewById(R.id.modShortDesc);
+//        Spinner priority = modifyItemView.findViewById(R.id.modPriority);
+//
+//        String item = items.get(selectedItem);
+
+        //Doesn't work, Implement this to start the modify dialog with current values for the selected item.
+
+//        description.setText(Pattern.compile("^Description: [\\w\\W]+",Pattern.DOTALL).matcher(item).replaceAll(""));
+//        shortDescription.setText(Pattern.compile("(?!Short Description: )[\\w\\W]+(?=Description)").matcher(item).replaceAll(""));
+//
+//        switch (Pattern.compile("Priority: [(Low|Medium|High)]+").matcher(item).toString()){
+//            case "Low":
+//                priority.setSelection(0);
+//                break;
+//            case "Medium":
+//                priority.setSelection(1);
+//                break;
+//            case "High":
+//                priority.setSelection(2);
+//                break;
+//        }
+
+        modifyDialog.setView(modifyItemView);
+        modifyDialog.setOnKeyListener(new DialogInterface.OnKeyListener() {
+            @Override
+            public boolean onKey(DialogInterface dialog, int keyCode, KeyEvent event) {
+                if(keyCode == KeyEvent.KEYCODE_BACK){
+                    dialog.dismiss();
+                    ((ViewGroup) modifyItemView.getParent()).removeView(modifyItemView);
+                    return true;
+                }
+                return false;
+            }
+        });
+        modifyDialog.setPositiveButton("Change", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                String title = arrayListAdapter.getItemTitle(selectedItem);
+                Spinner priority = modifyItemView.findViewById(R.id.modPriority);
+                EditText desc = modifyItemView.findViewById(R.id.modDesc);
+                EditText shortDesc = modifyItemView.findViewById(R.id.modShortDesc);
+                broadcastModifyItem(title,priority.getSelectedItem().toString(),desc.getText().toString(),shortDesc.getText().toString());
+
+                ((ViewGroup) modifyItemView.getParent()).removeView(modifyItemView);
+            }
+        });
+        modifyDialog.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                ((ViewGroup) modifyItemView.getParent()).removeView(modifyItemView);
+            }
+        });
+        modifyDialog.show();
+    }
+
     private void broadcastAddItem(EditText editTitle,Spinner editPriority, EditText editDesc, EditText editShortDesc){
         getApplicationContext().sendBroadcast(new Intent(ControllerService.ACTION_ADD_ITEM)
                 .putExtra(ControllerService.EXTRA_TITLE,editTitle.getText().toString().trim())
@@ -192,6 +265,14 @@ public class SecondActivity extends AppCompatActivity {
         SecondActivity.this.sendBroadcast(new Intent(ControllerService.ACTION_REMOVE_ITEM).putExtra(ControllerService.EXTRA_TITLE,title.trim()));
     }
 
+    private void broadcastModifyItem(String title, String priority,String description, String shortDescription){
+
+        SecondActivity.this.sendBroadcast(new Intent(ControllerService.ACTION_MODIFY_ITEM)
+                .putExtra(ControllerService.EXTRA_TITLE,title.trim())
+                .putExtra(ControllerService.EXTRA_PRIORITY,priority.trim())
+                .putExtra(ControllerService.EXTRA_DESCRIPTION,description.trim())
+                .putExtra(ControllerService.EXTRA_SHORT_DESCRIPTION,shortDescription.trim()));
+    }
 
 
     private class ArrayListAdapter extends ArrayAdapter<String>{
@@ -204,42 +285,23 @@ public class SecondActivity extends AppCompatActivity {
         }
 
         @Override
-        public void add(@Nullable String object) {
-            super.add(object);
-        }
-
-
-        @Override
-        public void remove(@Nullable String object) {
-            super.remove(object);
-        }
-
-        @Override
         public void clear() {
             super.clear();
             notifyDataSetChanged();
         }
 
-        //Not sure if this works but this will never get called since this view has no modify option
-        //on an item.
-        public void modifyItem(String title, String priority, String description, String shortDescription){
-            for(String s: items){
-                if(s.contains("Title: " + title)){
-                    int pos = items.indexOf(s);
-                    s = s.replace("Priority: [(Low|Medium|High)]+","Priority: " + priority);
-                    s = s.replace("(?:Short Description: )[\\w\\W]+(?=Description)", "Short Description: " + shortDescription);
-                    s = Pattern.compile("^Description: [\\w\\W]+",Pattern.DOTALL).matcher(s).replaceFirst("Description: " + description);
-                    items.remove(pos);
-                    items.add(pos,s);
-                    addAll(items);
-                    notifyDataSetChanged();
-                    break;
-                }
-            }
-        }
-
         public String getItem(int position){
             return items.get(position);
+        }
+
+        public String getItemByTitle(String title){
+
+            for(String item : items){
+                if(item.contains("Title: "+ title)){
+                    return item;
+                }
+            }
+            return "";
         }
 
         public String getItemTitle(int position){
@@ -268,7 +330,10 @@ public class SecondActivity extends AppCompatActivity {
             String desc = "Description: " + intent.getStringExtra(ControllerService.EXTRA_DESCRIPTION);
             String short_desc = "Short Description: " + intent.getStringExtra(ControllerService.EXTRA_SHORT_DESCRIPTION);
 
-            arrayListAdapter.add(title + "\n" + priority + "\n" + short_desc + "\n" + desc + "\n");
+            //In order to effect the data stored in the adapter need to change original data set
+            //and notify the adapter. CANNOT change the data in the adapter by extra functions
+            //written and then notify from within the adapter. It will not work that way.
+            items.add(title + "\n" + priority + "\n" + short_desc + "\n" + desc + "\n");
             arrayListAdapter.notifyDataSetChanged();
 
         }
@@ -276,36 +341,60 @@ public class SecondActivity extends AppCompatActivity {
         @Override
         protected void gotSentDeleteItem(Intent intent) {
             Log.d(TAG,"goSentDeleteItem");
-            String title = "Title: " + intent.getStringExtra(ControllerService.EXTRA_TITLE);
 
-            arrayListAdapter.remove(title);
+            //In order to effect the data stored in the adapter need to change original data set
+            //and notify the adapter. CANNOT change the data in the adapter by extra functions
+            //written and then notify from within the adapter. It will not work that way.
+            items.remove(arrayListAdapter.getItemByTitle(intent.getStringExtra(ControllerService.EXTRA_TITLE)));
             arrayListAdapter.notifyDataSetChanged();
         }
 
         @Override
         protected void getSentModifyItem(Intent intent) {
             Log.d(TAG,"goSentModifyItem");
-            String title = "Title: " + intent.getStringExtra(ControllerService.EXTRA_TITLE);
-            String priority = "Priority: " + intent.getStringExtra(ControllerService.EXTRA_PRIORITY);
-            String desc = "Description: " + intent.getStringExtra(ControllerService.EXTRA_DESCRIPTION);
-            String short_desc = "Short Description: " + intent.getStringExtra(ControllerService.EXTRA_SHORT_DESCRIPTION);
+            String title =  intent.getStringExtra(ControllerService.EXTRA_TITLE).trim();
+            String priority =  intent.getStringExtra(ControllerService.EXTRA_PRIORITY).trim();
+            String desc =  intent.getStringExtra(ControllerService.EXTRA_DESCRIPTION).trim();
+            String short_desc = intent.getStringExtra(ControllerService.EXTRA_SHORT_DESCRIPTION).trim();
 
-            arrayListAdapter.modifyItem(title, priority, desc, short_desc);
-
+            //For some reason this does not update the view and cannot find out why since it
+            //works for adding and deleting items from the list. In the two methods above.
+            modifyItem(title, priority, desc, short_desc);
             arrayListAdapter.notifyDataSetChanged();
+
         }
 
+        private void modifyItem(String title, String priority, String description, String shortDescription){
+
+            for(String s : items){
+                if(s.contains("Title: "+ title)){
+                    Log.d(TAG,"Contains!");
+                    int pos = items.indexOf(s);
+                    s = s.replace("Priority: [(Low|Medium|High)]+","Priority: " + priority);
+                    s = s.replace("(?:Short Description: )[\\w\\W]+(?=Description)", "Short Description: " + shortDescription);
+                    s = Pattern.compile("^Description: [\\w\\W]+",Pattern.DOTALL).matcher(s).replaceFirst("Description: " + description);
+                    items.remove(pos);
+                    arrayListAdapter.notifyDataSetChanged();
+                    items.add(pos,s);
+                    arrayListAdapter.notifyDataSetChanged();
+                    break;
+                }
+            }
+
+        }
+
+        //Not used
         @Override
         protected void gotSentPriority(Intent intent) {
         }
-
         @Override
         protected void gotSentDescription(Intent intent) {
         }
-
         @Override
         protected void gotSentShortDescription(Intent intent) {
         }
+
+
     }
 }
 
